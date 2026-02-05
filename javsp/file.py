@@ -227,17 +227,14 @@ def scan_movies(root: str) -> List[Movie]:
                 
                 if all_resolved:
                     unique_ids = set(group_results.values())
-                    if len(unique_ids) > 1:
-                        logger.info(f"AI 成功解决番号冲突: '{avid}' 被区分出 {list(unique_ids)}")
-                        resolved_dup_avids.append(avid)
-                        # 将这些文件重新归类
-                        for f, new_id in group_results.items():
-                            if new_id in dic:
-                                dic[new_id].append(f)
-                            else:
-                                dic[new_id] = [f]
-                    else:
-                         logger.debug(f"AI 认为冲突文件仍属于同一番号 ({list(unique_ids)[0]})，无法自动分片")
+                    logger.info(f"AI 成功解析冲突文件: '{avid}' -> {list(unique_ids)}")
+                    resolved_dup_avids.append(avid)
+                    # 将这些文件重新归类
+                    for f, new_id in group_results.items():
+                        if new_id in dic:
+                            dic[new_id].append(f)
+                        else:
+                            dic[new_id] = [f]
             
             # 移除已解决的冲突记录
             for avid in resolved_dup_avids:
