@@ -603,11 +603,31 @@ def entry():
     version_info = 'JavSP ' + getattr(sys, 'javsp_version', '未知版本/从代码运行')
     logger.debug(version_info.center(60, '='))
     check_update(Cfg().other.check_update, Cfg().other.auto_update)
-    root = get_scan_dir(Cfg().scanner.input_directory)
-    error_exit(root, '未选择要扫描的文件夹')
+    
+    # 处理远程文件系统
+    remote_fs = Cfg().scanner.remote_fs
+    is_remote = remote_fs is not None and remote_fs.type != 'local'
+    
+    if is_remote:
+        # 远程文件系统：从配置获取路径
+        if remote_fs.type == 'ftp' and remote_fs.ftp:
+            root = remote_fs.ftp.path
+        elif remote_fs.type == 'smb' and remote_fs.smb:
+            root = remote_fs.smb.path
+        else:
+            root = None
+        error_exit(root, '远程文件系统配置不完整')
+        logger.info(f'使用远程文件系统: {remote_fs.type}')
+    else:
+        root = get_scan_dir(Cfg().scanner.input_directory)
+        error_exit(root, '未选择要扫描的文件夹')
+    
     # 导入抓取器，必须在chdir之前
     import_crawlers()
-    os.chdir(root)
+    
+    # 仅本地文件系统需要chdir
+    if not is_remote:
+        os.chdir(root)
 
     print(f'扫描影片文件...')
     recognized = scan_movies(root)

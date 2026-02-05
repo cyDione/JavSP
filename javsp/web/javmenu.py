@@ -17,7 +17,7 @@ def parse_data(movie: MovieInfo):
     Args:
         movie (MovieInfo): 要解析的影片信息，解析后的信息直接更新到此变量内
     """
-    # JavMenu网页做得很不走心，将就了
+    # JAVMENU V5 适配 (2026-02)
     url = f'{base_url}/{movie.dvdid}'
     r = request.get(url)
     if r.history:
@@ -25,46 +25,99 @@ def parse_data(movie: MovieInfo):
         raise MovieNotFoundError(__name__, movie.dvdid)
 
     html = resp2html(r)
-    container = html.xpath("//div[@class='col-md-9 px-0']")[0]
-    title = container.xpath("div[@class='col-12 mb-3']/h1/strong/text()")[0]
-    # 竟然还在标题里插广告，真的疯了。要不是我已经写了抓取器，才懒得维护这个破站
+    # V5 版本的主容器类名变化: col-md-9 px-0 -> col-md-9 px-1 px-md-0
+    # 使用 contains 来兼容可能的类名变化
+    containers = html.xpath("//div[contains(@class, 'col-md-9')]")
+    if not containers:
+        logger.debug(f"javmenu: 无法找到预期的页面结构，可能网站已更新或被拦截")
+        raise MovieNotFoundError(__name__, movie.dvdid, "页面结构不匹配")
+    container = containers[0]
+    
+    # V5 标题结构: div.mb-3.px-1 > h1 > strong
+    title_tags = container.xpath(".//h1/strong/text()")
+    if not title_tags:
+        title_tags = container.xpath(".//h1/text()")
+    if not title_tags:
+        raise MovieNotFoundError(__name__, movie.dvdid, "无法找到标题")
+    title = title_tags[0]
+    # 清理标题中的广告文字
     title = title.replace('  | JAV目錄大全 | 每日更新', '')
     title = title.replace(' 免費在線看', '').replace(' 免費AV在線看', '')
-    cover_tag = container.xpath("//div[@class='single-video']")
-    if len(cover_tag) > 0:
-        video_tag = cover_tag[0].find('video')
-        # URL首尾竟然也有空格……
-        movie.cover = video_tag.get('data-poster').strip()
-        # 预览影片改为blob了，无法获取
-        # movie.preview_video = video_tag.find('source').get('src').strip()
+    
+    # V5 视频播放器使用 plyr，封面从 poster 获取
+    video_tag = container.xpath(".//video[@data-poster]")
+    if video_tag:
+        movie.cover = video_tag[0].get('data-poster').strip()
     else:
-        cover_img_tag = container.xpath("//img[@class='lazy rounded']/@data-src")
+        # 备用: 从图片获取封面
+        cover_img_tag = container.xpath(".//img[contains(@class, 'lazy')]/@data-src")
         if cover_img_tag:
             movie.cover = cover_img_tag[0].strip()
-    info = container.xpath("//div[@class='card-body']")[0]
-    publish_date = info.xpath("div/span[contains(text(), '日期:')]")[0].getnext().text
-    duration = info.xpath("div/span[contains(text(), '時長:')]")[0].getnext().text.replace('分鐘', '')
-    producer = info.xpath("div/span[contains(text(), '製作:')]/following-sibling::a/span/text()")
-    if producer:
-        movie.producer = producer[0]
-    genre_tags = info.xpath("//a[@class='genre']")
+    
+    # V5 信息卡片在 left-wrapper > card > card-body
+    info_cards = container.xpath(".//div[contains(@class, 'left-wrapper')]//div[@class='card-body']")
+    if not info_cards:
+        # 回退到旧版选择器
+        info_cards = container.xpath(".//div[@class='card-body']")
+    
+    publish_date = None
+    duration = None
+    
+    if info_cards:
+        info = info_cards[0]
+        # V5 日期标签: "發佈於:" (注意是繁体)
+        date_tags = info.xpath(".//span[contains(text(), '發佈於') or contains(text(), '日期')]/following-sibling::span/text()")
+        if not date_tags:
+            date_tags = info.xpath(".//span[contains(text(), '發佈於') or contains(text(), '日期')]/../span[2]/text()")
+        if date_tags:
+            publish_date = date_tags[0].strip()
+        
+        # V5 时长标签: "時長:"
+        duration_tags = info.xpath(".//span[contains(text(), '時長')]/following-sibling::span/text()")
+        if not duration_tags:
+            duration_tags = info.xpath(".//span[contains(text(), '時長')]/../span[2]/text()")
+        if duration_tags:
+            duration = duration_tags[0].replace('分鐘', '').replace('分钟', '').strip()
+        
+        # 製作商
+        producer = info.xpath(".//span[contains(text(), '製作')]/following-sibling::a//text()")
+        if producer:
+            movie.producer = producer[0].strip()
+    
+    # 类别标签
+    genre_tags = html.xpath("//a[@class='genre']")
     genre, genre_id = [], []
     for tag in genre_tags:
-        items = tag.get('href').split('/')
-        pre_id = items[-3] + '/' + items[-1]
-        genre.append(tag.text.strip())
-        genre_id.append(pre_id)
-        # genre的链接中含有censored字段，但是无法用来判断影片是否有码，因为完全不可靠……
-    actress = info.xpath("div/span[contains(text(), '女優:')]/following-sibling::*/a/text()") or None
-    magnet_table = container.xpath("//table[contains(@class, 'magnet-table')]/tbody")
+        href = tag.get('href', '')
+        if href:
+            items = href.split('/')
+            if len(items) >= 3:
+                pre_id = items[-3] + '/' + items[-1]
+                genre_id.append(pre_id)
+        tag_text = tag.text or ''
+        if tag_text.strip():
+            genre.append(tag_text.strip())
+    
+    # 女优信息
+    actress = html.xpath("//span[contains(text(), '女優')]/following-sibling::*/a/text()")
+    if not actress:
+        actress = html.xpath("//span[contains(text(), '女優')]/..//a/text()")
+    actress = [a.strip() for a in actress if a.strip()] or None
+    
+    # 磁力链接
+    magnet_table = container.xpath(".//table[contains(@class, 'magnet-table')]/tbody")
     if magnet_table:
-        magnet_links = magnet_table[0].xpath("tr/td/a/@href")
-        # 它的FC2数据是从JavDB抓的，JavDB更换图片服务器后它也跟上了，似乎数据更新频率还可以
+        magnet_links = magnet_table[0].xpath(".//tr/td/a/@href")
         movie.magnet = [i.replace('[javdb.com]','') for i in magnet_links]
-    preview_pics = container.xpath("//a[@data-fancybox='gallery']/@href")
+    
+    # 预览图片 - V5 使用 tile-item
+    preview_pics = html.xpath("//a[@data-fancybox='gallery']/@href")
+    if not preview_pics:
+        preview_pics = html.xpath("//a[contains(@class, 'tile-item')]/@href")
 
     if (not movie.cover) and preview_pics:
         movie.cover = preview_pics[0]
+    
     movie.url = url
     movie.title = title.replace(movie.dvdid, '').strip()
     movie.preview_pics = preview_pics

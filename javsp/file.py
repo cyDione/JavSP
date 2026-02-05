@@ -17,6 +17,7 @@ from javsp.avid import *
 from javsp.lib import re_escape
 from javsp.config import Cfg
 from javsp.datatype import Movie
+from javsp.remote_fs import get_filesystem
 
 logger = logging.getLogger(__name__)
 failed_items = []
@@ -28,30 +29,40 @@ def scan_movies(root: str) -> List[Movie]:
     # 1. 以数字编号最多支持10个分片，字母编号最多支持26个分片
     # 2. 允许分片间的编号有公共的前导符（如编号01, 02, 03），因为求prefix时前导符也会算进去
 
+    # 获取文件系统实例（本地或远程）
+    fs = get_filesystem()
+    
     # 扫描所有影片文件并获取它们的番号
     dic = {}    # avid: [abspath1, abspath2...]
     small_videos = {}
     ignore_folder_name_pattern = re.compile('|'.join(Cfg().scanner.ignored_folder_name_pattern))
-    for dirpath, dirnames, filenames in os.walk(root):
+    for dirpath, dirnames, filenames in fs.walk(root):
         for name in dirnames.copy():
             if ignore_folder_name_pattern.match(name):
                 dirnames.remove(name)
-            # 移除有nfo的文件夹
-            if Cfg().scanner.skip_nfo_dir:
-                if any(file.lower().endswith(".nfo") for file in os.listdir(os.path.join(dirpath, name)) if isinstance(file, str)):
-                    print(f"skip file {name}")
-                    dirnames.remove(name)
+            # 移除有nfo的文件夹（仅本地文件系统支持）
+            elif Cfg().scanner.skip_nfo_dir:
+                try:
+                    nfo_check_path = os.path.join(dirpath, name) if isinstance(fs, type(get_filesystem())) and Cfg().scanner.remote_fs is None else None
+                    if nfo_check_path and any(f.lower().endswith(".nfo") for f in os.listdir(nfo_check_path) if isinstance(f, str)):
+                        print(f"skip file {name}")
+                        dirnames.remove(name)
+                except:
+                    pass
 
         for file in filenames:
             ext = os.path.splitext(file)[1].lower()
             if ext in Cfg().scanner.filename_extensions:
-                fullpath = os.path.join(dirpath, file)
+                fullpath = fs.join(dirpath, file)
                 # 忽略小于指定大小的文件
-                filesize = os.path.getsize(fullpath)
+                try:
+                    filesize = fs.get_size(fullpath)
+                except:
+                    filesize = 0
                 if filesize < Cfg().scanner.minimum_size:
                     small_videos.setdefault(file, []).append(fullpath)
                     continue
-                dvdid = get_id(fullpath)
+                dvdid = get_id_with_ai_fallback(fullpath)
                 cid = get_cid(fullpath)
                 # 如果文件名能匹配到cid，那么将cid视为有效id，因为此时dvdid多半是错的
                 avid = cid if cid else dvdid

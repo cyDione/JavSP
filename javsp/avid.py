@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 
-__all__ = ['get_id', 'get_cid', 'guess_av_type']
+__all__ = ['get_id', 'get_id_with_ai_fallback', 'get_cid', 'guess_av_type']
 
 
 from javsp.config import Cfg
@@ -101,6 +101,24 @@ def get_id(filepath_str: str) -> str:
         return get_id(filepath.parent.name)
     else:
         return ''
+
+
+def get_id_with_ai_fallback(filepath_str: str) -> str:
+    """从给定的文件路径中提取番号，失败时使用AI fallback
+    
+    Args:
+        filepath_str: 文件路径
+        
+    Returns:
+        str: 提取的番号，如果无法识别则返回空字符串
+    """
+    avid = get_id(filepath_str)
+    if not avid:
+        # 正则无法识别时，尝试使用AI提取
+        if Cfg().ai_extractor.enabled:
+            from javsp.web.ai_extractor import extract_avid_by_ai
+            avid = extract_avid_by_ai(filepath_str)
+    return avid
 
 
 CD_POSTFIX = re.compile(r'([-_]\w|cd\d)$')

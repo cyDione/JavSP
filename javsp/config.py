@@ -9,6 +9,27 @@ from pathlib import Path
 
 from javsp.lib import resource_path
 
+class FTPConfig(BaseConfig):
+    host: str
+    port: int = 21
+    username: str = "anonymous"
+    password: str = ""
+    path: str = "/"
+    encoding: str = "utf-8"
+
+class SMBConfig(BaseConfig):
+    host: str
+    share: str
+    path: str = "/"
+    username: str | None = None
+    password: str | None = None
+    port: int = 445
+
+class RemoteFS(BaseConfig):
+    type: Literal['local', 'ftp', 'smb'] = 'local'
+    ftp: FTPConfig | None = None
+    smb: SMBConfig | None = None
+
 class Scanner(BaseConfig):
     ignored_id_pattern: List[str]
     input_directory: Path | None = None
@@ -17,6 +38,7 @@ class Scanner(BaseConfig):
     minimum_size: ByteSize
     skip_nfo_dir: bool
     manual: bool
+    remote_fs: RemoteFS | None = None
 
 class CrawlerID(str, Enum):
     airav = 'airav'
@@ -210,6 +232,16 @@ class Translator(BaseConfig):
     engine: TranslateEngine = Field(..., discriminator='name')
     fields: TranslateField
 
+class AIExtractorEngine(BaseConfig):
+    name: Literal['openai']
+    url: Url
+    api_key: str
+    model: str
+
+class AIExtractor(BaseConfig):
+    enabled: bool = False
+    engine: AIExtractorEngine | None = None
+
 class Other(BaseConfig):
     interactive: bool
     check_update: bool
@@ -233,5 +265,6 @@ class Cfg(BaseConfig):
     crawler: Crawler
     summarizer: Summarizer
     translator: Translator
+    ai_extractor: AIExtractor
     other: Other
     CONFIG_SOURCES=get_config_source()
