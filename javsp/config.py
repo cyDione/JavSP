@@ -138,6 +138,7 @@ class Crawler(BaseConfig):
     sleep_after_scraping: Duration
     use_javdb_cover: UseJavDBCover
     normalize_actress_name: bool
+    cookies: Dict[CrawlerID, str] = {}
 
 class MovieDefault(BaseConfig):
     title: str

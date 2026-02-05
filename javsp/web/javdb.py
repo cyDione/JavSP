@@ -61,6 +61,21 @@ def get_html_wrapper(url):
     elif r.status_code in (403, 503):
         # 尝试通过加载Cookies解决403问题
         if r.status_code == 403:
+            # 1. 优先尝试读取配置文件中的 Cookies
+            manual_cookies = Cfg().crawler.cookies.get(CrawlerID.javdb)
+            if manual_cookies:
+                from http.cookies import SimpleCookie
+                cookie = SimpleCookie()
+                cookie.load(manual_cookies)
+                cookies_dict = {k: v.value for k, v in cookie.items()}
+                
+                request = Request(use_scraper=True)
+                request.cookies = cookies_dict
+                request.headers['Referer'] = 'https://javdb.com/'
+                logger.info('遇到403禁止访问，尝试使用配置文件中的 Cookies 重试')
+                return get_html_wrapper(url)
+
+            # 2. 尝试读取浏览器 Cookies
             if 'cookies_pool' not in globals():
                 try:
                     cookies_pool = get_browsers_cookies()

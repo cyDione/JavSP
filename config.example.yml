@@ -74,6 +74,10 @@ crawler:
   use_javdb_cover: fallback
   normalize_actress_name: true
 
+  # 如果自动获取Cookies失败（如Linux环境），可手动在此填写Cookies字符串
+  cookies:
+    javdb: "key1=value1; key2=value2"
+
 ################################
 summarizer:
   move_files: true
