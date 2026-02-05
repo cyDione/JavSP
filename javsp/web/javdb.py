@@ -15,6 +15,7 @@ from javsp.chromium import get_browsers_cookies
 # 初始化Request实例。使用scraper绕过CloudFlare后，需要指定网页语言，否则可能会返回其他语言网页，影响解析
 request = Request(use_scraper=True)
 request.headers['Accept-Language'] = 'zh-CN,zh;q=0.9,zh-TW;q=0.8,en-US;q=0.7,en;q=0.6,ja;q=0.5'
+request.headers['Referer'] = 'https://javdb.com/'
 
 logger = logging.getLogger(__name__)
 genre_map = GenreMap('data/genre_javdb.csv')
@@ -58,6 +59,25 @@ def get_html_wrapper(url):
             html = resp2html(r)
             return html
     elif r.status_code in (403, 503):
+        # 尝试通过加载Cookies解决403问题
+        if r.status_code == 403:
+            if 'cookies_pool' not in globals():
+                try:
+                    cookies_pool = get_browsers_cookies()
+                except Exception as e:
+                    logger.warning(f"尝试解决403错误时无法获取浏览器Cookies: {e}")
+                    cookies_pool = []
+            
+            if len(cookies_pool) > 0:
+                item = cookies_pool.pop()
+                request = Request(use_scraper=True)
+                request.cookies = item['cookies']
+                # 添加 Referer
+                request.headers['Referer'] = 'https://javdb.com/'
+                cookies_source = (item['profile'], item['site'])
+                logger.info(f'遇到403禁止访问，尝试更换Cookies为: {cookies_source}')
+                return get_html_wrapper(url)
+
         html = resp2html(r)
         code_tag = html.xpath("//span[@class='code-label']/span")
         error_code = code_tag[0].text if code_tag else None
