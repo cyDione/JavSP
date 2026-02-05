@@ -96,6 +96,18 @@ def scan_movies(root: str) -> List[Movie]:
                     else:
                         dic[avid] = [fullpath]
                 else:
+                    # 尝试 AI 兜底 (针对 regex 失败的情况)
+                    if Cfg().ai_extractor.enabled:
+                        from javsp.web.ai_extractor import extract_avid_by_ai
+                        ai_avid = extract_avid_by_ai(fullpath)
+                        if ai_avid:
+                            if ai_avid in dic:
+                                dic[ai_avid].append(fullpath)
+                            else:
+                                dic[ai_avid] = [fullpath]
+                            logger.info(f"AI 成功提取番号: {fullpath} -> {ai_avid}")
+                            continue
+
                     fail = Movie('无法识别番号')
                     fail.files = [fullpath]
                     failed_items.append(fail)
@@ -164,6 +176,45 @@ def scan_movies(root: str) -> List[Movie]:
         # 生成最终的分片信息
         mapped_files = [files[slices.index(i)] for i in sorted_slices]
         dic[avid] = mapped_files
+
+    # 尝试使用 AI 解决 non_slice_dup 冲突
+    if Cfg().ai_extractor.enabled and non_slice_dup:
+        from javsp.web.ai_extractor import extract_avid_by_ai
+        
+        resolved_files = [] # Files successfully re-identified by AI
+        
+        for avid, files in non_slice_dup.copy().items():
+            logger.info(f"AI 尝试解决番号冲突: {avid}, 文件数: {len(files)}")
+            
+            # 对每个冲突文件单独进行 AI 识别
+            ai_results = {} # file_path -> ai_avid
+            for f in files:
+                res = extract_avid_by_ai(f)
+                if res:
+                    ai_results[f] = res
+            
+            # 分析 AI 结果
+            if len(ai_results) == len(files):
+                # 如果所有文件都成功识别
+                # 检查是否识别出了不同的番号
+                unique_ids = set(ai_results.values())
+                
+                if len(unique_ids) > 1:
+                    # AI 认为这些文件属于不同的番号 -> 冲突解决！
+                    logger.info(f"AI 成功将冲突文件区分: {ai_results}")
+                    del non_slice_dup[avid]
+                    
+                    for f, new_id in ai_results.items():
+                        if new_id in dic:
+                            dic[new_id].append(f)
+                        else:
+                            dic[new_id] = [f]
+                    continue
+                else:
+                     # AI 也认为它们是同一个番号，但依然不符合分片规则
+                     logger.debug(f"AI 确认文件番号相同 ({list(unique_ids)[0]})，但仍无法作为分片处理")
+            else:
+                logger.debug("AI未能识别所有冲突文件的番号")
 
     # 汇总输出错误提示信息
     msg = ''

@@ -243,6 +243,7 @@ class AIExtractorEngine(BaseConfig):
 class AIExtractor(BaseConfig):
     enabled: bool = False
     engine: AIExtractorEngine | None = None
+    request_per_minute: int = 30
 
 class Other(BaseConfig):
     interactive: bool

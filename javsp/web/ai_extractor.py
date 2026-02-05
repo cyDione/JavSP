@@ -96,6 +96,19 @@ def check_ai_connection() -> bool:
 
 def _call_openai_api(filename: str, url: Url, api_key: str, model: str) -> Optional[str]:
     """调用OpenAI兼容API提取番号"""
+    # 简单的速率限制
+    import time
+    rpm = Cfg().ai_extractor.request_per_minute
+    if rpm > 0:
+        interval = 60.0 / rpm
+        last_req_time = getattr(_call_openai_api, 'last_req_time', 0)
+        now = time.time()
+        wait_time = interval - (now - last_req_time)
+        if wait_time > 0:
+            logger.debug(f"AI速率限制: 等待 {wait_time:.2f} 秒...")
+            time.sleep(wait_time)
+        _call_openai_api.last_req_time = time.time()
+
     api_url = str(url)
     headers = {
         "Content-Type": "application/json",
