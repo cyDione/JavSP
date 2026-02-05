@@ -631,6 +631,9 @@ def entry():
     logger.debug(version_info.center(60, '='))
     check_update(Cfg().other.check_update, Cfg().other.auto_update)
     
+    from javsp.web.ai_extractor import check_ai_connection
+    check_ai_connection()
+    
     # 处理远程文件系统
     remote_fs = Cfg().scanner.remote_fs
     is_remote = remote_fs is not None and remote_fs.type != 'local'

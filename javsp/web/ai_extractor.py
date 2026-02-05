@@ -6,7 +6,7 @@ import requests
 from pydantic_core import Url
 
 
-__all__ = ['extract_avid_by_ai']
+__all__ = ['extract_avid_by_ai', 'check_ai_connection']
 
 
 from javsp.config import Cfg
@@ -65,6 +65,33 @@ def extract_avid_by_ai(filepath_str: str) -> str:
         logger.error(f"AI提取番号时出错: {e}")
     
     return ''
+
+
+def check_ai_connection() -> bool:
+    """检查AI API连接是否正常"""
+    cfg = Cfg()
+    if not cfg.ai_extractor.enabled:
+        return True
+    
+    if cfg.ai_extractor.engine is None:
+        logger.warning("AI功能已启用但未配置引擎")
+        return False
+        
+    engine = cfg.ai_extractor.engine
+    logger.info(f"正在测试AI连接 ({engine.model})...")
+    
+    try:
+        # 使用简单的测试消息
+        result = _call_openai_api("Test Connection", engine.url, engine.api_key, engine.model)
+        if result is not None:
+            logger.info("AI连接测试成功")
+            return True
+        else:
+            logger.warning("AI连接测试失败: 无响应")
+            return False
+    except Exception as e:
+        logger.warning(f"AI连接测试失败: {e}")
+        return False
 
 
 def _call_openai_api(filename: str, url: Url, api_key: str, model: str) -> Optional[str]:
