@@ -15,6 +15,8 @@ scanner:
   filename_extensions: [.3gp, .avi, .f4v, .flv, .iso, .m2ts, .m4v, .mkv, .mov, .mp4, .mpeg, .rm, .rmvb, .ts, .vob, .webm, .wmv, .strm, .mpg]
   # 扫描影片文件时忽略指定的文件夹
   ignored_folder_name_pattern: ['^\\.', '^#recycle$', '^#整理完成$']
+  # 扫描影片文件时忽略指定的路径（支持 glob 模式，如 */other/*）
+  ignored_paths: []
   # 匹配番号时忽略小于指定大小的文件
   minimum_size: 100MiB
   skip_nfo_dir: yes

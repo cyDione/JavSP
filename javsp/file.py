@@ -40,6 +40,30 @@ def scan_movies(root: str) -> List[Movie]:
         for name in dirnames.copy():
             if ignore_folder_name_pattern.match(name):
                 dirnames.remove(name)
+                continue
+                
+            # 检查文件路径是否在忽略列表中
+            fullpath = fs.join(dirpath, name)
+            should_ignore = False
+            for pattern in Cfg().scanner.ignored_paths:
+                # 支持 glob 模式匹配，如 */other/*
+                import fnmatch
+                # 统一为正斜杠进行匹配，避免Windows反斜杠带来的问题
+                path_to_check = fullpath.replace('\\', '/')
+                pattern = pattern.replace('\\', '/')
+                
+                # 如果配置的是绝对路径，且当前是本地文件系统，则尝试转为绝对路径匹配
+                if os.path.isabs(pattern) and isinstance(fs, type(get_filesystem())) and Cfg().scanner.remote_fs is None:
+                    path_to_check = os.path.abspath(fullpath).replace('\\', '/')
+                    
+                if fnmatch.fnmatch(path_to_check, pattern) or fnmatch.fnmatch(name, pattern):
+                    logger.info(f"忽略路径: {fullpath}")
+                    dirnames.remove(name)
+                    should_ignore = True
+                    break
+            if should_ignore:
+                continue
+
             # 移除有nfo的文件夹（仅本地文件系统支持）
             elif Cfg().scanner.skip_nfo_dir:
                 try:

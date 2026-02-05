@@ -35,6 +35,7 @@ class Scanner(BaseConfig):
     input_directory: Path | None = None
     filename_extensions: List[str]
     ignored_folder_name_pattern: List[str]
+    ignored_paths: List[str] = []
     minimum_size: ByteSize
     skip_nfo_dir: bool
     manual: bool
