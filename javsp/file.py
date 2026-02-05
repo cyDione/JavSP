@@ -213,30 +213,34 @@ def scan_movies(root: str) -> List[Movie]:
             
             # 处理 non_slice_dup 的识别结果
             # 如果 AI 识别出不同的番号，则可以解除冲突
+            # 处理 non_slice_dup 的识别结果
+            # 允许部分解析：只要AI识别出了文件名，就将其移出冲突列表
             resolved_dup_avids = []
             for avid, files in non_slice_dup.items():
-                # 检查该组文件是否全部被 AI 识别出了有效番号
                 group_results = {}
-                all_resolved = True
+                remaining = []
+                
                 for f in files:
                     if f in ai_results and ai_results[f]:
-                        group_results[f] = ai_results[f]
-                    else:
-                        all_resolved = False
-                        break
-                
-                if all_resolved:
-                    unique_ids = set(group_results.values())
-                    logger.info(f"AI 成功解析冲突文件: '{avid}' -> {list(unique_ids)}")
-                    resolved_dup_avids.append(avid)
-                    # 将这些文件重新归类
-                    for f, new_id in group_results.items():
+                        # AI 成功识别
+                        new_id = ai_results[f]
+                        logger.info(f"AI 成功解析冲突文件: '{os.path.basename(f)}' -> '{new_id}'")
                         if new_id in dic:
                             dic[new_id].append(f)
                         else:
                             dic[new_id] = [f]
+                    else:
+                        # AI 未识别
+                        remaining.append(f)
+                
+                if not remaining:
+                    #全部识别成功
+                    resolved_dup_avids.append(avid)
+                elif len(remaining) < len(files):
+                    # 部分识别成功，更新剩余的冲突列表
+                    non_slice_dup[avid] = remaining
             
-            # 移除已解决的冲突记录
+            # 移除已完全解决的冲突记录
             for avid in resolved_dup_avids:
                 del non_slice_dup[avid]
 
