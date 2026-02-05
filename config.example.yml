@@ -75,6 +75,7 @@ crawler:
 ################################
 summarizer:
   move_files: true
+  overwrite_existing: false
   path: 
     output_folder_pattern: '#整理完成/{actress}/[{num}] {title}'
     basename_pattern: '{num}'

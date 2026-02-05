@@ -469,16 +469,24 @@ def RunNormalMode(all_movies):
                 cover_dl = download_cover(movie.info.covers, movie.fanart_file, movie.info.big_covers)
             else:
                 cover_dl = download_cover(movie.info.covers, movie.fanart_file)
-            check_step(cover_dl, '下载封面图片失败')
-            cover, pic_path = cover_dl
-            # 确保实际下载的封面的url与即将写入到movie.info中的一致
-            if cover != movie.info.cover:
-                movie.info.cover = cover
-            # 根据实际下载的封面的格式更新fanart/poster等图片的文件名
-            if pic_path != movie.fanart_file:
-                movie.fanart_file = pic_path
-                actual_ext = os.path.splitext(pic_path)[1]
-                movie.poster_file = os.path.splitext(movie.poster_file)[0] + actual_ext
+            
+            if cover_dl:
+                check_step(cover_dl, '下载封面图片失败')
+                cover, pic_path = cover_dl
+                # 确保实际下载的封面的url与即将写入到movie.info中的一致
+                if cover != movie.info.cover:
+                    movie.info.cover = cover
+                # 根据实际下载的封面的格式更新fanart/poster等图片的文件名
+                if pic_path != movie.fanart_file:
+                    movie.fanart_file = pic_path
+                    actual_ext = os.path.splitext(pic_path)[1]
+                    movie.poster_file = os.path.splitext(movie.poster_file)[0] + actual_ext
+            else:
+                # 如果没有下载封面（例如因为已存在且configured to not overwrite），确保文件名扩展名正确
+                if os.path.exists(movie.fanart_file):
+                    actual_ext = os.path.splitext(movie.fanart_file)[1]
+                    movie.poster_file = os.path.splitext(movie.poster_file)[0] + actual_ext
+                check_step(True)
 
             process_poster(movie)
 
@@ -489,16 +497,20 @@ def RunNormalMode(all_movies):
                 inner_bar.set_description('下载剧照')
                 if movie.info.preview_pics:
                     extrafanartdir = movie.save_dir + '/extrafanart'
-                    os.mkdir(extrafanartdir)
+                    os.makedirs(extrafanartdir, exist_ok=True)
                     for (id, pic_url) in enumerate(movie.info.preview_pics):
                         inner_bar.set_description(f"Downloading extrafanart {id} from url: {pic_url}")
                                                                                                                                 
                         fanart_destination = f"{extrafanartdir}/{id}.png"
+                        if not Cfg().summarizer.overwrite_existing and os.path.exists(fanart_destination):
+                            logger.info(f"剧照已存在，跳过: {fanart_destination}")
+                            continue
+
                         try:
                             info = download(pic_url, fanart_destination)
                             if valid_pic(fanart_destination):
-                                filesize = get_fmt_size(pic_path)
-                                width, height = get_pic_size(pic_path)
+                                filesize = get_fmt_size(fanart_destination)
+                                width, height = get_pic_size(fanart_destination)
                                 elapsed = time.strftime("%M:%S", time.gmtime(info['elapsed']))
                                 speed = get_fmt_size(info['rate']) + '/s'
                                 logger.info(f"已下载剧照{pic_url} {id}.png: {width}x{height}, {filesize} [{elapsed}, {speed}]")
@@ -510,7 +522,10 @@ def RunNormalMode(all_movies):
                 check_step(True)
 
             inner_bar.set_description('写入NFO')
-            write_nfo(movie.info, movie.nfo_file)
+            if Cfg().summarizer.overwrite_existing or not os.path.exists(movie.nfo_file):
+                write_nfo(movie.info, movie.nfo_file)
+            else:
+                logger.info(f"NFO文件已存在，跳过: {movie.nfo_file}")
             check_step(True)
             if Cfg().summarizer.move_files:
                 inner_bar.set_description('移动影片文件')
@@ -533,6 +548,18 @@ def RunNormalMode(all_movies):
 
 def download_cover(covers, fanart_path, big_covers=[]):
     """下载封面图片"""
+    
+    # 检查是否允许覆盖
+    if not Cfg().summarizer.overwrite_existing:
+        # 检查是否已存在封面文件（考虑到可能的扩展名）
+        base_path = os.path.splitext(fanart_path)[0]
+        for ext in ['.jpg', '.png', '.jpeg', '.webp']:
+            potential_path = base_path + ext
+            if os.path.exists(potential_path):
+                logger.info(f"封面已存在，跳过: {potential_path}")
+                # 尝试返回现有的封面信息，尽管我们不知道 url，但至少返回路径
+                return (None, potential_path)
+
     # 优先下载高清封面
     for url in big_covers:
         pic_path = get_pic_path(fanart_path, url)
