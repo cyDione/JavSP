@@ -93,14 +93,19 @@ def _call_openai_api(filename: str, url: Url, api_key: str, model: str) -> Optio
     r = requests.post(api_url, headers=headers, json=data, timeout=30)
     
     if r.status_code == 200:
-        response = r.json()
+        try:
+            response = r.json()
+        except requests.exceptions.JSONDecodeError:
+            logger.error(f"AI API返回了非JSON格式的数据: {r.text[:200]}...")  # 只打印前200个字符避免太长
+            return None
+            
         if 'error' in response:
             logger.error(f"AI API返回错误: {response['error']}")
             return None
         content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
         return content.strip()
     else:
-        logger.error(f"AI API请求失败: {r.status_code} - {r.reason}")
+        logger.error(f"AI API请求失败: {r.status_code} - {r.reason} - {r.text[:200]}")
         return None
 
 
