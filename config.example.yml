@@ -144,3 +144,4 @@ ai_extractor:
     url: 'https://api.openai.com/v1/chat/completions'
     api_key: ''
     model: 'gpt-4o-mini'
+  request_per_minute: 30
