@@ -26,7 +26,7 @@ else:
     base_url = str(Cfg().network.proxy_free[CrawlerID.javdb])
 
 
-def get_html_wrapper(url):
+def get_html_wrapper(url, tried_manual_cookies=False):
     """包装外发的request请求并负责转换为可xpath的html，同时处理Cookies无效等问题"""
     global request, cookies_pool
     r = request.get(url, delay_raise=True)
@@ -50,7 +50,7 @@ def get_html_wrapper(url):
                 request.cookies = item['cookies']
                 cookies_source = (item['profile'], item['site'])
                 logger.debug(f'未携带有效Cookies而发生重定向，尝试更换Cookies为: {cookies_source}')
-                return get_html_wrapper(url)
+                return get_html_wrapper(url, tried_manual_cookies=tried_manual_cookies)
             else:
                 raise CredentialError('JavDB: 所有浏览器Cookies均已过期')
         elif r.history and 'pay' in r.url.split('/')[-1]:
@@ -63,7 +63,7 @@ def get_html_wrapper(url):
         if r.status_code == 403:
             # 1. 优先尝试读取配置文件中的 Cookies
             manual_cookies = Cfg().crawler.cookies.get(CrawlerID.javdb)
-            if manual_cookies:
+            if manual_cookies and not tried_manual_cookies:
                 from http.cookies import SimpleCookie
                 cookie = SimpleCookie()
                 cookie.load(manual_cookies)
@@ -73,7 +73,7 @@ def get_html_wrapper(url):
                 request.cookies = cookies_dict
                 request.headers['Referer'] = 'https://javdb.com/'
                 logger.info('遇到403禁止访问，尝试使用配置文件中的 Cookies 重试')
-                return get_html_wrapper(url)
+                return get_html_wrapper(url, tried_manual_cookies=True)
 
             # 2. 尝试读取浏览器 Cookies
             if 'cookies_pool' not in globals():
@@ -91,7 +91,7 @@ def get_html_wrapper(url):
                 request.headers['Referer'] = 'https://javdb.com/'
                 cookies_source = (item['profile'], item['site'])
                 logger.info(f'遇到403禁止访问，尝试更换Cookies为: {cookies_source}')
-                return get_html_wrapper(url)
+                return get_html_wrapper(url, tried_manual_cookies=tried_manual_cookies)
 
         html = resp2html(r)
         code_tag = html.xpath("//span[@class='code-label']/span")
