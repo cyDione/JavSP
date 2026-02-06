@@ -11,7 +11,7 @@ from javsp.datatype import  MovieInfo
 
 
 # 初始化Request实例
-request = Request(use_scraper=True)
+request = Request(use_scraper=True, enable_cffi=False)
 
 logger = logging.getLogger(__name__)
 permanent_url = 'https://www.javlibrary.com'
