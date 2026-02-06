@@ -30,6 +30,7 @@ pydantic-extra-types = "^2.9.0"
 pendulum = "^3.0.0"
 # slimeface = "^2024.9.27"  # 暂时禁用，macOS arm64 编译有问题
 smbprotocol = "^1.12.0"
+curl-cffi = "^0.14.0"
 
 [tool.poetry.scripts]
 javsp = "javsp.__main__:entry"

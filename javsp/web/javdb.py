@@ -13,7 +13,7 @@ from javsp.chromium import get_browsers_cookies
 
 
 # 初始化Request实例。使用scraper绕过CloudFlare后，需要指定网页语言，否则可能会返回其他语言网页，影响解析
-request = Request(use_scraper=True)
+request = Request(use_scraper=True, impersonate="chrome110")
 request.headers['Accept-Language'] = 'zh-CN,zh;q=0.9,zh-TW;q=0.8,en-US;q=0.7,en;q=0.6,ja;q=0.5'
 request.headers['Referer'] = 'https://javdb.com/'
 
@@ -46,7 +46,7 @@ def get_html_wrapper(url, tried_manual_cookies=False):
             if len(cookies_pool) > 0:
                 item = cookies_pool.pop()
                 # 更换Cookies时需要创建新的request实例，否则cloudscraper会保留它内部第一次发起网络访问时获得的Cookies
-                request = Request(use_scraper=True)
+                request = Request(use_scraper=True, impersonate="chrome110")
                 request.cookies = item['cookies']
                 cookies_source = (item['profile'], item['site'])
                 logger.debug(f'未携带有效Cookies而发生重定向，尝试更换Cookies为: {cookies_source}')
@@ -69,7 +69,7 @@ def get_html_wrapper(url, tried_manual_cookies=False):
                 cookie.load(manual_cookies)
                 cookies_dict = {k: v.value for k, v in cookie.items()}
                 
-                request = Request(use_scraper=True)
+                request = Request(use_scraper=True, impersonate="chrome110")
                 request.cookies = cookies_dict
                 request.headers['Referer'] = 'https://javdb.com/'
                 logger.info('遇到403禁止访问，尝试使用配置文件中的 Cookies 重试')
@@ -85,7 +85,7 @@ def get_html_wrapper(url, tried_manual_cookies=False):
             
             if len(cookies_pool) > 0:
                 item = cookies_pool.pop()
-                request = Request(use_scraper=True)
+                request = Request(use_scraper=True, impersonate="chrome110")
                 request.cookies = item['cookies']
                 # 添加 Referer
                 request.headers['Referer'] = 'https://javdb.com/'

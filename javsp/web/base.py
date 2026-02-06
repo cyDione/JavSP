@@ -6,7 +6,11 @@ import shutil
 import logging
 import requests
 import contextlib
-import cloudscraper
+try:
+    from curl_cffi import requests as cffi_requests
+except ImportError:
+    cffi_requests = None
+# import cloudscraper
 import lxml.html
 from tqdm import tqdm
 from lxml import etree
@@ -39,36 +43,25 @@ def read_proxy():
 # 处理网络请求的类，它带有默认的属性，但是也可以在各个抓取器模块里进行进行定制
 class Request():
     """作为网络请求出口并支持各个模块定制功能"""
-    def __init__(self, use_scraper=False) -> None:
+    def __init__(self, use_scraper=False, impersonate="chrome110") -> None:
         # 必须使用copy()，否则各个模块对headers的修改都将会指向本模块中定义的headers变量，导致只有最后一个对headers的修改生效
         self.headers = headers.copy()
         self.cookies = {}
 
         self.proxies = read_proxy()
         self.timeout = Cfg().network.timeout.total_seconds()
-        if not use_scraper:
-            self.scraper = None
+        
+        self.use_scraper = use_scraper and (cffi_requests is not None)
+        if self.use_scraper:
+            self.session = cffi_requests.Session(impersonate=impersonate)
+            self.__get = self.session.get
+            self.__post = self.session.post
+            self.__head = self.session.head
+        else:
+            self.session = None
             self.__get = requests.get
             self.__post = requests.post
             self.__head = requests.head
-        else:
-            self.scraper = cloudscraper.create_scraper()
-            self.__get = self._scraper_monitor(self.scraper.get)
-            self.__post = self._scraper_monitor(self.scraper.post)
-            self.__head = self._scraper_monitor(self.scraper.head)
-
-    def _scraper_monitor(self, func):
-        """监控cloudscraper的工作状态，遇到不支持的Challenge时尝试退回常规的requests请求"""
-        def wrapper(*args, **kw):
-            try:
-                return func(*args, **kw)
-            except Exception as e:
-                logger.debug(f"无法通过CloudFlare检测: '{e}', 尝试退回常规的requests请求")
-                if func == self.scraper.get:
-                    return requests.get(*args, **kw)
-                else:
-                    return requests.post(*args, **kw)
-        return wrapper
 
     def get(self, url, delay_raise=False):
         r = self.__get(url,
