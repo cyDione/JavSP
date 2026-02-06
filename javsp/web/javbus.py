@@ -35,7 +35,17 @@ def parse_data(movie: MovieInfo):
     if page_title and page_title[0].startswith('404 Page Not Found!'):
         raise MovieNotFoundError(__name__, movie.dvdid)
 
-    container = html.xpath("//div[@class='container']")[0]
+    container_list = html.xpath("//div[@class='container']")
+    if not container_list:
+        # 页面结构不符合预期，可能是被反爬拦截或404检测失效
+        if "Just a moment" in html.text_content() or "Checking your browser" in html.text_content():
+            raise CrawlerError(__name__, f"JavBus反爬拦截 (Cloudflare Challenge): {movie.dvdid}")
+        else:
+            # 尝试再次检查标题是否也是404 (有些情况404结构不同)
+             if page_title and "404" in page_title[0]:
+                 raise MovieNotFoundError(__name__, movie.dvdid)
+             raise CrawlerError(__name__, f"JavBus页面解析失败 (找不到Container), 可能是网络问题或IP被封禁: {movie.dvdid}")
+    container = container_list[0]
     title = container.xpath("h3/text()")[0]
     cover = container.xpath("//a[@class='bigImage']/img/@src")[0]
     preview_pics = container.xpath("//div[@id='sample-waterfall']/a/@href")
