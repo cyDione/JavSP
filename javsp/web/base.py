@@ -54,6 +54,9 @@ class Request():
         self.use_scraper = use_scraper and (cffi_requests is not None)
         if self.use_scraper:
             self.session = cffi_requests.Session(impersonate=impersonate)
+            # 使用curl_cffi时，应移除手动指定的User-Agent，否则会导致TLS指纹与UA不匹配，被CF识别
+            if 'User-Agent' in self.headers:
+                self.headers.pop('User-Agent')
             self.__get = self.session.get
             self.__post = self.session.post
             self.__head = self.session.head
